@@ -122,17 +122,17 @@ Choose which transportation mode you want to find users for:
             data = self.database.get_n_users_with_most_elevation_gained(20)
             print("\n" + tabulate(data, headers=[
                   "User ID", "Altitude gain"]))
-    #     if (choice == "9"):
-    #         data = self.database.get_users_with_invalid_activities()
-    #         print("\n" + tabulate(data, headers=[
-    #               "User ID", "Number of invalid activities"]))
-    #     if (choice == "10"):
-    #         data = self.database.get_users_with_activities_in_forbidden_city()
-    #         print("\n" + tabulate(data, headers=[
-    #               "User ID"]))
-    #     if (choice == "11"):
-    #         data = self.database.get_most_frequent_transportation_mode_per_user()
-    #         print(tabulate(data, headers=["user_id", "transportation_mode"]))
+        if (choice == "9"):
+            data = self.database.get_users_with_invalid_activities()
+            print("\n" + tabulate(data, headers=[
+                  "User ID", "Number of invalid activities"]))
+        if (choice == "10"):
+            data = self.database.get_users_with_activities_in_forbidden_city()
+            print("\n" + tabulate(data, headers=[
+                  "User ID"]))
+        if (choice == "11"):
+            data = self.database.get_most_frequent_transportation_mode_per_user()
+            print(tabulate(data, headers=["user_id", "transportation_mode"]))
 
         print("\n-------------------------------------")
 

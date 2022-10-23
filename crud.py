@@ -230,12 +230,83 @@ class Crud:
         sorted_user_total_altitude = {k: v for k, v in sorted(
             total_altitude_user.items(), key=lambda item: item[1][0])}
         top_20 = sorted_user_total_altitude[:20]
-        print('---------------------'  + '\n')
-        for user in top_20.keys():
-            print('User: ' + str(user) + ' Altitude: ' +
-                str(top_20[user][0]))
+        return [[user, total_altitude_user[user][0]] for user in top_20]
 
      
+    def get_users_with_invalid_activities(self):
+        invalid_activities_per_user = {}
+
+        trackpoints_for_activity = self.db.trackpoint.aggregate([
+            {'$group': {
+                '_id': '$activity_id',
+                'datetimes': {'$push': '$date_days'}}
+            }], allowDiskUse=True)
+
+        current_trackpoint = None
+        last_trackpoint = None
+        try: 
+            iterations = 0
+            while iterations < self.db.trackpoint.count():
+                if last_trackpoint == None:
+                    current_trackpoint = trackpoints_for_activity.next()
+                    last_trackpoint = current_trackpoint
+                else:
+                    current_time = current_trackpoint['date_days']
+                    current_activity = current_trackpoint['activity_id']
+                    last_time = last_trackpoint['date_days']
+                    last_activity = last_trackpoint['activity_id']
+
+                    if current_activity == last_activity and current_time - last_time >= 5 * 60:
+                        try:
+                            invalid_activities_per_user[current_trackpoint['user_id']] += 1
+                        except KeyError:
+                            invalid_activities_per_user[current_trackpoint['user_id']] = 1
+                last_trackpoint = current_trackpoint
+                current_trackpoint = trackpoints_for_activity.next()
+                iterations += 1
+        except StopIteration as e:
+            pass
+        return invalid_activities_per_user
+            
+
+    def get_users_with_activities_in_forbidden_city(self):
+        # query = 'SELECT DISTINCT activity_id FROM trackpoint WHERE lat LIKE "39.916%" AND lon LIKE "116.397%"'
+        trackpoints_for_act = self.db.trackpoint.aggregate([
+            {'$project': {
+                'activity_id': 1,
+                'latitude': {'$round': ['$latitude', 3]},
+                'longitude': {'$round': ['$longitude', 3]},
+                'user_id': 1,
+            }},
+            {'$match': {
+                'latitude': 39.916,
+                'longitude': 116.397}
+            },
+            {'$group': {
+                '_id': '$user_id',
+            }
+            }
+        ], allowDiskUse=True)
+        return [trackpoint['_id'] for trackpoint in trackpoints_for_act]
+
+
+    def get_most_frequent_transportation_mode_per_user(self):
+        most_frequent= self.db.activity.aggregate([
+            {'$group': {
+                '_id': {'user_id': '$user_id', 'transportation_mode': '$transportation_mode'},
+                'count': {'$sum': 1}
+            }},
+            {'$sort': {'count': -1}},
+            {'$group': {
+                '_id': '$_id.user_id',
+                'transportation_mode': {'$first': '$_id.transportation_mode'},
+                'count': {'$first': '$count'}
+            }},
+            {'$sort': {'_id': 1}}
+        ], allowDiskUse=True)
+        return [[frequent['_d'], frequent['transportation_mode']] for frequent in most_frequent]
+
+
     # def _find_highest_activity_id(self):
     #     query = """SELECT MAX FROM activity(id)"""
     #     self.ACTIVITY_ID = self.cursor.execute(query)
@@ -267,20 +338,6 @@ class Crud:
 
 
 
-    # def get_most_frequent_transportation_mode_per_user(self):
-    #     query = ("""SELECT user_id, transportation_mode, COUNT(*) AS count FROM activity WHERE transportation_mode!="-" GROUP BY user_id, transportation_mode ORDER BY user_id, count DESC""")
-    #     self.cursor.execute(query)
-    #     rows = self.cursor.fetchall()
-    #     most_used = []
-    #     present = []
-
-    #     for row in rows:
-    #         if row[0] not in present:
-    #             present.append(row[0])
-    #             most_used.append([row[0], row[1]])
-    #     return most_used
-
-
 
 
     # def _get_users_with_activities(self):
@@ -290,39 +347,9 @@ class Crud:
     #     return users
 
 
-    # def get_users_with_invalid_activities(self):
-    #     users = self._get_users_with_activities()
-    #     users_invalid = {}
-    #     for user in users:
-    #         time_query = f'SELECT activity.id, UNIX_TIMESTAMP(trackpoint.date_days) FROM activity INNER JOIN trackpoint ON activity.id=trackpoint.activity_id WHERE activity.user_id="{user[0]}" ORDER BY activity.id, trackpoint.date_time ASC'
-    #         self.cursor.execute(time_query)
-    #         times = self.cursor.fetchall()
-    #         activity_id = times[0][0]
-    #         current_time = times[0][1]
-    #         last_time = times[0][1]
-    #         for i in range(2, len(times)):
-    #             if times[i][0] != activity_id:  # reset current and last if new activity
-    #                 activity_id = times[i][0]
-    #                 last_time = times[i][1]
-    #                 current_time = times[i][1]
-    #             else:
-    #                 current_time = times[i][1]
-    #                 if current_time - last_time >= 5 * 60:
-    #                     try:
-    #                         users_invalid[user[0]] += 1
-    #                     except KeyError:
-    #                         users_invalid[user[0]] = 1
-    #                     break
-    #                 last_time = current_time
 
     #     return_users = []
     #     for user in users_invalid:
     #         return_users.append([user, users_invalid[user]])
     #     return return_users
 
-
-    # def get_users_with_activities_in_forbidden_city(self):
-    #     query = 'SELECT DISTINCT activity_id FROM trackpoint WHERE lat LIKE "39.916%" AND lon LIKE "116.397%"'
-    #     self.cursor.execute(query)
-    #     rows = self.cursor.fetchall()
-    #     return rows
